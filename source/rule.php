@@ -198,5 +198,5 @@ abstract class RuleMatch {
     // Usually this is just $this->pos, since the rules should be applied to the expanded text too.
     // But in some cases (like in the builtin rule #define()), you want to skip the whole body and
     // instead return $this->pos + $this->length.
-    abstract public function applyTo(HistoryString &$hString);
+    abstract public function applyTo(HistoryString &$hString, bool $allowSideEffects);
 }

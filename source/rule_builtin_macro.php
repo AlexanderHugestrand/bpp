@@ -6,14 +6,12 @@ class BuiltinMacroRule extends Rule {
     private $name;
     private $signature;
     private $parameters = [];
-    private $allowSideEffects = false;
     private $func;
     private $progressFunc;
 
     public function __construct(Preprocessor $preprocessor, 
                                 string $name, 
                                 array $parameters, 
-                                bool $allowSideEffects,
                                 callable $func, 
                                 callable $progressFunc = null)
     {
@@ -21,7 +19,6 @@ class BuiltinMacroRule extends Rule {
         $this->name = $name;
         $this->signature = strNormalizeSpaces($name.'('.implode(', ', $parameters).')');
         $this->parameters = $parameters;
-        $this->allowSideEffects = $allowSideEffects;
         $this->func = $func;
         if ($progressFunc === null) {
             $this->progressFunc = function (BuiltinMacroMatch $match, string $replacement) {
@@ -30,10 +27,6 @@ class BuiltinMacroRule extends Rule {
         } else {
             $this->progressFunc = $progressFunc;
         }
-    }
-
-    public function allowSideEffects() {
-        return $this->allowSideEffects;
     }
 
     public function getName() {
@@ -144,15 +137,13 @@ class BuiltinMacroMatch extends RuleMatch {
         }
     }
 
-    public function applyTo(HistoryString &$hString) {
+    public function applyTo(HistoryString &$hString, bool $allowSideEffects) {
         $rule = $this->getRule();
         $args = $this->getArguments();
-        /*for ($i = 0; $i < count($args); ++$i) {
-            if ($rule->getSignature() === '#define(BODY)') {
-                echo "  #DEF \"".$args[$i]."\"\n";
-            }
-            $args[$i] = $rule->applyRules($args[$i], $rule->allowSideEffects(), 'Arg of builtin '.$rule->getSignature());
-        }*/
+        
+        for ($i = 0; $i < count($args); ++$i) {
+            $args[$i] = $rule->applyRules($args[$i], $allowSideEffects, 'Arg of builtin '.$rule->getSignature());
+        }
 
         $replacement = $rule->applyToArgs($args);
         if ($replacement === null) {

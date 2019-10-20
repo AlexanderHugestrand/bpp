@@ -149,7 +149,7 @@ class RegexMatch extends RuleMatch {
         return $this->args[$index];
     }
 
-    public function applyTo(HistoryString &$hString) {
+    public function applyTo(HistoryString &$hString, bool $allowSideEffects) {
         $this->replacementIndex = $hString->replace($this->getPos(), $this->getEnd(), $this->replacement, $this);
         return $this->getPos();
     }

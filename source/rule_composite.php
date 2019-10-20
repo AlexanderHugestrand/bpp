@@ -124,7 +124,7 @@ class CompositeRuleMatch extends RuleMatch {
         return $this->matches[$ruleIndex]->getArgument($blockContents);
     }
 
-    public function applyTo(HistoryString &$hString) {
+    public function applyTo(HistoryString &$hString, bool $allowSideEffects) {
         $hString->replace($this->getPos(), $this->getEnd(), $this->replacement, $this);
         return $this->getPos();
     }

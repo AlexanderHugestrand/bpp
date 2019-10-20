@@ -282,3 +282,22 @@ function strNormalizeSpaces(string $string) {
     $string = preg_replace('/\n\h/', "\n", $string);
     return trim(preg_replace('/\n+/', "\n", $string));
 }
+
+function strUnescape(string $text) {
+    $textLength = strlen($text);
+    $textOut = '';
+    for ($i = 0; $i < $textLength; ++$i) {
+        if ($text[$i] === '\\') {
+            ++$i;
+            switch ($text[$i]) {
+                case "r": $textOut .= "\r"; break;
+                case "n": $textOut .= "\n"; break;
+                case "t": $textOut .= "\t"; break;
+                default: $textOut .= $text[$i]; break;
+            }
+        } else {
+            $textOut .= $text[$i];
+        }
+    }
+    return $textOut;
+}
