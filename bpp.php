@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__.'/preprocessor.php';
+require_once __DIR__.'/source/preprocessor.php';
 
 if (count($argv) < 2) {
     echo "Not enough arguments given.\n";
