@@ -14,15 +14,15 @@ class PreprocessorRuleContext {
         $this->preprocessor = $preprocessor;
         
         // Arithmetic operations.
-        $this->addRule('#add', ['A', 'B'], function (array $args) { return $args[0] + $args[1]; });
-        $this->addRule('#sub', ['A', 'B'], function (array $args) { return $args[0] - $args[1]; });
-        $this->addRule('#mul', ['A', 'B'], function (array $args) { return $args[0] * $args[1]; });
-        $this->addRule('#div', ['A', 'B'], function (array $args) { return $args[0] / $args[1]; });
-        $this->addRule('#idiv', ['A', 'B'], function (array $args) { return (int) ($args[0] / $args[1]); });
-        $this->addRule('#mod', ['A', 'B'], function (array $args) { return $this->mod($args[0], $args[1]); });
+        $this->addRule('#add', ['A', 'B'], false, function (array $args, bool $se) { return $args[0] + $args[1]; });
+        $this->addRule('#sub', ['A', 'B'], false, function (array $args, bool $se) { return $args[0] - $args[1]; });
+        $this->addRule('#mul', ['A', 'B'], false, function (array $args, bool $se) { return $args[0] * $args[1]; });
+        $this->addRule('#div', ['A', 'B'], false, function (array $args, bool $se) { return $args[0] / $args[1]; });
+        $this->addRule('#idiv', ['A', 'B'], false, function (array $args, bool $se) { return (int) ($args[0] / $args[1]); });
+        $this->addRule('#mod', ['A', 'B'], false, function (array $args, bool $se) { return $this->mod($args[0], $args[1]); });
 
         // String operations.
-        $this->addRule('#substr', ['STR', 'START', 'END'], function (array $args) {
+        $this->addRule('#substr', ['STR', 'START', 'END'], false, function (array $args, bool $se) {
             $string = $args[0];
             $length = strlen($string);
             $start = mod($args[1], $length);
@@ -33,18 +33,19 @@ class PreprocessorRuleContext {
             return substr($string, $start, $end - $start);
         });
 
-        $this->addRule('#pos', [], function (array $args) {
+        $this->addRule('#pos', [], false, function (array $args, bool $se) {
             return $this->preprocessor->getOutputLength();
         });
-        $this->addRule('#out', ['POS', 'TEXT'], function (array $args) {
-            list($pos, $text) = $args;
-            $pos = $this->applyRules($pos, '#out/pos');
-            
-            $this->preprocessor->insertTextInOutput($pos, $text);
+        $this->addRule('#out', ['POS', 'TEXT'], true, function (array $args, bool $se) {
+            if ($this->allowSideEffects) {
+                list($pos, $text) = $args;
+                $pos = $this->applyRules($pos, false, '#out/pos');
+                $this->preprocessor->insertTextInOutput($pos, $text);
+            }
         });
 
         // State storage
-        $this->addRule('#put', ['PATH', 'VALUE'], function (array $args) {
+        $this->addRule('#put', ['PATH', 'VALUE'], true, function (array $args, bool $se) {
             list($path, $value) = $args;
             $parts = explode('/', $path);
             $key = array_pop($parts);
@@ -60,10 +61,15 @@ class PreprocessorRuleContext {
             }
             $table[$key] = $value;
 
-            return '';
+            if ($this->allowSideEffects) {
+                return '';
+            } else {
+                // Evaluate later.
+                return "#put($path, $value)";
+            }
         });
-        $this->addRule('#get', ['PATH'], function (array $args) {
-            $arg = $this->applyRules($args[0], '#get');
+        $this->addRule('#get', ['PATH'], false, function (array $args, bool $se) {
+            $arg = $this->applyRules($args[0], false, '#get');
             $parts = explode('/', $arg);
             $key = array_pop($parts);
             $partCount = count($parts);
@@ -79,7 +85,7 @@ class PreprocessorRuleContext {
 
             return $table[$key];
         });
-        $this->addRule('#get', ['PATH', 'DEFAULT_VALUE'], function (array $args) {
+        $this->addRule('#get', ['PATH', 'DEFAULT_VALUE'], false, function (array $args, bool $se) {
             list($path, $defaultValue) = $args;
 
             $parts = explode('/', $path);
@@ -99,8 +105,7 @@ class PreprocessorRuleContext {
         });
 
 
-        $this->addRule('#define', ['BODY'],
-            function (array $args) {
+        $this->addRule('#define', ['BODY'], false, function (array $args, bool $se) {
                 $rule = Rule::create($this->preprocessor, $args[0]);
                 if ($rule === false) {
                     exit -3;
@@ -118,13 +123,14 @@ class PreprocessorRuleContext {
                 return $match->getPos() + strlen($replacement);
             }
         );
-        $this->addRule('#echo', ['TEXT'], function (array $args) {
+        $this->addRule('#echo', ['TEXT'], true, function (array $args, bool $se) {
             if ($this->allowSideEffects) {
                 echo $args[0]."\n";
+                return '';
             } else {
-                print_r($this->allowSideEffectsStack);
+                // Evaluate later.
+                return '#echo('.$args[0].')';
             }
-            return '';
         });
     }
 
@@ -230,12 +236,13 @@ class PreprocessorRuleContext {
         }
     }
 
-    private function addRule(string $name, array $params, callable $function, callable $progressFunc = null) {
-        $this->setRule(new BuiltinMacroRule($this->preprocessor, $name, $params, function (array $args) use ($function) {
-            if (!$this->preprocessor->onEnabledLine()) {
-                return '';
-            }
-            return $function($args);
+    private function addRule(string $name, array $params, bool $hasSideEffects, callable $function, callable $progressFunc = null) {
+        $this->setRule(new BuiltinMacroRule($this->preprocessor, $name, $params, $hasSideEffects, 
+            function (array $args, bool $allowSideEffects) use ($function) {
+                if (!$this->preprocessor->onEnabledLine()) {
+                    return '';
+                }
+                return $function($args, $allowSideEffects);
             }, 
             $progressFunc)
         );

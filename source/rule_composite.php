@@ -35,21 +35,34 @@ class CompositeRule extends Rule {
     public function findMatch(HistoryString $haystack, int $offset = 0) {
         $pos = $offset;
         $matches = [];
-        foreach ($this->rules as $rule) {
-            $match = $rule->findMatch($haystack, $pos);
-            if ($match === false) {
-                return false;
-            }
 
-            $inBetweenMatches = trim(substr($haystack, $pos, $match->getPos() - $pos));
-            if ($inBetweenMatches !== '' && !empty($matches)) {
-                $matches = [];
+        $haystackLength = strlen($haystack);
+        while ($pos < $haystackLength) {
+            foreach ($this->rules as $rule) {
+                $match = $rule->findMatch($haystack, $pos);
+                if ($match === false) {
+                    return false;
+                }
+
+                $inBetweenMatches = trim(substr($haystack, $pos, $match->getPos() - $pos));
+                if ($inBetweenMatches !== '' && !empty($matches)) {
+                    $matches = [];
+                    $matches[] = $match;
+                    $pos = $match->getEnd();
+                    break;
+                }
+
                 $matches[] = $match;
-                //echo "Mismatched #2 rule $rule from pos $pos:\n'".$inBetweenMatches."'\n";
+                $pos = $match->getEnd();
             }
 
-            $matches[] = $match;
-            $pos = $match->getEnd();
+            if (count($matches) === count($this->rules)) {
+                break;
+            }
+        }
+
+        if (count($matches) < count($this->rules)) {
+            return false;
         }
 
         $startPos = $matches[0]->getPos();
@@ -100,6 +113,14 @@ class CompositeRuleMatch extends RuleMatch {
 
             $blockEnd = strBlockEndPos($body, $indexEnd, ['['], [']']);
             $blockContents = trim(substr($body, $indexEnd + 1, $blockEnd - $indexEnd - 1));
+            if (!isset($this->matches[$ruleIndex])) {
+                echo "Undefined match index '$ruleIndex' in rule ".$rule->getSignature()."\n";
+                echo "Matches: [\n";
+                foreach ($this->matches as $i => $match) {
+                    echo "    $i(".$match->getPos().", ".$match->getEnd()."),\n";
+                }
+                echo "]\n";
+            }
             $out .= $this->matches[$ruleIndex]->getArgument($blockContents);
             $pos = $blockEnd + 1;
         }

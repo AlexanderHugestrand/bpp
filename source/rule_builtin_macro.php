@@ -8,10 +8,12 @@ class BuiltinMacroRule extends Rule {
     private $parameters = [];
     private $func;
     private $progressFunc;
+    private $hasSideEffects = true;
 
     public function __construct(Preprocessor $preprocessor, 
                                 string $name, 
                                 array $parameters, 
+                                bool $hasSideEffects,
                                 callable $func, 
                                 callable $progressFunc = null)
     {
@@ -19,6 +21,7 @@ class BuiltinMacroRule extends Rule {
         $this->name = $name;
         $this->signature = strNormalizeSpaces($name.'('.implode(', ', $parameters).')');
         $this->parameters = $parameters;
+        $this->hasSideEffects = $hasSideEffects;
         $this->func = $func;
         if ($progressFunc === null) {
             $this->progressFunc = function (BuiltinMacroMatch $match, string $replacement) {
@@ -41,9 +44,13 @@ class BuiltinMacroRule extends Rule {
         return $this->parameters;
     }
 
-    public function applyToArgs(array $args) {
+    public function applyToArgs(array $args, bool $allowSideEffects) {
         $func = $this->func;
-        return $func($args);
+        return $func($args, $allowSideEffects);
+    }
+
+    public function hasSideEffects() {
+        return $this->hasSideEffects;
     }
 
     public function beginSearch() {}
@@ -141,11 +148,13 @@ class BuiltinMacroMatch extends RuleMatch {
         $rule = $this->getRule();
         $args = $this->getArguments();
         
+        $allowSideEffects = $rule->hasSideEffects() && $allowSideEffects;
+
         for ($i = 0; $i < count($args); ++$i) {
             $args[$i] = $rule->applyRules($args[$i], $allowSideEffects, 'Arg of builtin '.$rule->getSignature());
         }
 
-        $replacement = $rule->applyToArgs($args);
+        $replacement = $rule->applyToArgs($args, $allowSideEffects);
         if ($replacement === null) {
             $replacement = '';
         }
